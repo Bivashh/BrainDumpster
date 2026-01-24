@@ -1,0 +1,660 @@
+﻿@page "/register"
+@using BrainDumpster.Data
+@using BrainDumpster.Model
+@inject AppDbContext db
+@inject NavigationManager nav
+
+<PageTitle>Register - BrainDumpster</PageTitle>
+
+<div class="register-full-container">
+    <!-- Background -->
+    <div class="register-background">
+        <div class="particles"></div>
+        <div class="gradient-overlay"></div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="register-content">
+        <!-- Brand Header -->
+        <div class="brand-header">
+            <div class="logo-animated">📖</div>
+            <h1 class="brand-title">Join BrainDumpster</h1>
+            <p class="brand-subtitle">Start your journey of self-discovery</p>
+        </div>
+
+        <!-- Registration Card -->
+        <div class="register-card-full">
+            <div class="card-header">
+                <h2>Create Your Account</h2>
+                <p>It only takes a minute to get started</p>
+            </div>
+
+            <div class="form-wrapper">
+                <div class="input-field">
+                    <label>👤 Choose Username</label>
+                    <input type="text"
+                           placeholder="Enter a username"
+                           @bind="username"
+                           class="modern-input-full" />
+                    <small class="input-hint">At least 3 characters</small>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-field">
+                        <label>🔢 Create PIN</label>
+                        <input type="password"
+                               placeholder="4-6 digit PIN"
+                               @bind="pin"
+                               maxlength="6"
+                               class="modern-input-full" />
+                    </div>
+
+                    <div class="input-field">
+                        <label>🔢 Confirm PIN</label>
+                        <input type="password"
+                               placeholder="Re-enter your PIN"
+                               @bind="confirmPin"
+                               maxlength="6"
+                               class="modern-input-full" />
+                    </div>
+                </div>
+
+                <!-- PIN Strength -->
+                @if (!string.IsNullOrEmpty(pin))
+                {
+                    <div class="strength-container">
+                        <div class="strength-label">
+                            <span>PIN Strength</span>
+                            <span class="strength-score">@GetPinStrength()/4</span>
+                        </div>
+                        <div class="strength-bars">
+                            @for (int i = 1; i <= 4; i++)
+                            {
+                                <div class="strength-bar @(i <= GetPinStrength() ? "active" : "")"></div>
+                            }
+                        </div>
+                        <small class="strength-hint">
+                            @GetStrengthHint()
+                        </small>
+                    </div>
+                }
+
+                <button @onclick="RegisterUser" class="register-btn-full" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner"></span>
+                        <span>Creating Account...</span>
+                    }
+                    else
+                    {
+                        <span>Create Account</span>
+                        <span class="btn-icon">🚀</span>
+                    }
+                </button>
+
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="alert-message @(isError ? "error" : "success")">
+                        @message
+                    </div>
+                }
+
+                <div class="terms-box">
+                    <p class="terms-text">
+                        By creating an account, you agree to our
+                        <a href="#" class="terms-link">Terms of Service</a> and
+                        <a href="#" class="terms-link">Privacy Policy</a>
+                    </p>
+                </div>
+
+                <div class="divider">
+                    <span>Already have an account?</span>
+                </div>
+
+                <a href="/login" class="login-link-full">
+                    Sign in instead
+                </a>
+            </div>
+        </div>
+
+        <!-- Benefits Section -->
+        <div class="benefits-section">
+            <h3 class="benefits-title">Why Join BrainDumpster?</h3>
+            <div class="benefits-grid">
+                <div class="benefit-item">
+                    <div class="benefit-icon">✨</div>
+                    <h4>Completely Free</h4>
+                    <p>No hidden fees, no subscriptions. Ever.</p>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">🔐</div>
+                    <h4>Your Data Stays Yours</h4>
+                    <p>We never share or sell your personal thoughts.</p>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">📈</div>
+                    <h4>Track Your Growth</h4>
+                    <p>See how your mood and thoughts evolve over time.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="register-footer">
+            <p>"The first step towards getting somewhere is to decide you're not going to stay where you are." — J.P. Morgan</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .register-full-container {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .register-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .register-content {
+        position: relative;
+        z-index: 2;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+
+    .brand-header {
+        text-align: center;
+        margin-bottom: 50px;
+        animation: slideDown 0.8s ease-out;
+    }
+
+    .logo-animated {
+        font-size: 5rem;
+        display: inline-block;
+        animation: float 3s ease-in-out infinite;
+        filter: drop-shadow(0 10px 20px rgba(0,0,0,0.2));
+    }
+
+    .brand-title {
+        font-size: 3.5rem;
+        margin: 20px 0 10px 0;
+        color: white;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        background: linear-gradient(45deg, #fff, #ffe4e6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .brand-subtitle {
+        font-size: 1.2rem;
+        color: rgba(255,255,255,0.8);
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.6;
+    }
+
+    .register-card-full {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 25px;
+        padding: 50px;
+        max-width: 600px;
+        margin: 0 auto 60px auto;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255,255,255,0.2);
+        animation: slideUp 0.8s ease-out 0.2s both;
+    }
+
+    .card-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+
+        .card-header h2 {
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+            color: #1e293b;
+            font-weight: 700;
+        }
+
+        .card-header p {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+    .form-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+    }
+
+    .input-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    @@media (max-width: 640px) {
+        .input-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .input-field label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #475569;
+        font-size: 1rem;
+    }
+
+    .modern-input-full {
+        width: 100%;
+        padding: 18px 20px;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        transition: all 0.3s;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+        .modern-input-full:focus {
+            outline: none;
+            border-color: #f5576c;
+            box-shadow: 0 0 0 4px rgba(245, 87, 108, 0.1);
+            transform: translateY(-1px);
+        }
+
+    .input-hint {
+        display: block;
+        color: #94a3b8;
+        font-size: 0.9rem;
+        margin-top: 6px;
+        margin-left: 5px;
+    }
+
+    .strength-container {
+        background: #f8fafc;
+        padding: 20px;
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        margin: 10px 0;
+    }
+
+    .strength-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-weight: 600;
+        color: #475569;
+    }
+
+    .strength-score {
+        color: #f5576c;
+        font-size: 1.1rem;
+    }
+
+    .strength-bars {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .strength-bar {
+        flex: 1;
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        transition: all 0.3s;
+    }
+
+        .strength-bar.active {
+            background: linear-gradient(90deg, #ef4444, #f97316, #22c55e);
+        }
+
+    .strength-hint {
+        display: block;
+        color: #64748b;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+
+    .register-btn-full {
+        width: 100%;
+        padding: 20px;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.2rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        transition: all 0.3s;
+        margin-top: 20px;
+        box-shadow: 0 10px 20px rgba(245, 87, 108, 0.3);
+    }
+
+        .register-btn-full:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(245, 87, 108, 0.4);
+        }
+
+        .register-btn-full:active:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .register-btn-full:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+    .terms-box {
+        text-align: center;
+        margin: 20px 0;
+        padding: 15px;
+        background: #f8fafc;
+        border-radius: 10px;
+    }
+
+    .terms-text {
+        color: #64748b;
+        margin: 0;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .terms-link {
+        color: #f5576c;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+        .terms-link:hover {
+            text-decoration: underline;
+        }
+
+    .login-link-full {
+        display: block;
+        text-align: center;
+        color: #f5576c;
+        text-decoration: none;
+        padding: 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        transition: all 0.3s;
+        font-weight: 600;
+        font-size: 1.1rem;
+        background: white;
+    }
+
+        .login-link-full:hover {
+            background: #f8fafc;
+            border-color: #f5576c;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.1);
+        }
+
+    .benefits-section {
+        max-width: 900px;
+        margin: 0 auto 50px auto;
+    }
+
+    .benefits-title {
+        text-align: center;
+        color: white;
+        font-size: 2rem;
+        margin-bottom: 40px;
+        font-weight: 700;
+    }
+
+    .benefits-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 30px;
+    }
+
+    .benefit-item {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s;
+    }
+
+        .benefit-item:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+    .benefit-icon {
+        font-size: 2.5rem;
+        margin-bottom: 20px;
+        display: inline-block;
+    }
+
+    .benefit-item h4 {
+        color: white;
+        margin: 0 0 15px 0;
+        font-size: 1.3rem;
+    }
+
+    .benefit-item p {
+        color: rgba(255,255,255,0.8);
+        margin: 0;
+        line-height: 1.5;
+        font-size: 0.95rem;
+    }
+
+    .register-footer {
+        text-align: center;
+        color: rgba(255,255,255,0.7);
+        font-style: italic;
+        font-size: 1.1rem;
+        padding-top: 30px;
+        border-top: 1px solid rgba(255,255,255,0.2);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    /* Shared Animations */
+    @@keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes float {
+        0%, 100% {
+            transform: translateY(0) rotate(0deg);
+        }
+
+        50% {
+            transform: translateY(-15px) rotate(5deg);
+        }
+    }
+
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .register-content {
+            padding: 20px;
+        }
+
+        .brand-title {
+            font-size: 2.5rem;
+        }
+
+        .register-card-full {
+            padding: 30px 25px;
+        }
+
+        .card-header h2 {
+            font-size: 2rem;
+        }
+
+        .benefits-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private string username = "";
+    private string pin = "";
+    private string confirmPin = "";
+    private string message = "";
+    private bool isError = false;
+    private bool isLoading = false;
+
+    private int GetPinStrength()
+    {
+        if (string.IsNullOrEmpty(pin)) return 0;
+
+        int strength = 0;
+        if (pin.Length >= 4) strength++;
+        if (pin.Length >= 5) strength++;
+        if (pin.Length >= 6) strength++;
+        if (pin.All(char.IsDigit)) strength++;
+
+        return strength;
+    }
+
+    private string GetStrengthHint()
+    {
+        int strength = GetPinStrength();
+        return strength switch
+        {
+            0 => "Start typing your PIN",
+            1 => "Weak - Try making it longer",
+            2 => "Fair - Good start",
+            3 => "Good - Almost there",
+            4 => "Strong - Excellent!",
+            _ => "Unknown"
+        };
+    }
+
+    private async Task RegisterUser()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        message = "";
+        isError = false;
+
+        try
+        {
+            // Validation
+            if (string.IsNullOrWhiteSpace(username) || username.Length < 3)
+            {
+                message = "Username must be at least 3 characters";
+                isError = true;
+                isLoading = false;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(pin) || pin.Length < 4 || !pin.All(char.IsDigit))
+            {
+                message = "PIN must be 4-6 digits";
+                isError = true;
+                isLoading = false;
+                return;
+            }
+
+            if (pin != confirmPin)
+            {
+                message = "PINs don't match";
+                isError = true;
+                isLoading = false;
+                return;
+            }
+
+            // Check if username exists
+            if (db.Users.Any(u => u.Username == username))
+            {
+                message = "Username already taken";
+                isError = true;
+                isLoading = false;
+                return;
+            }
+
+            // Create user
+            var user = new User
+            {
+                Username = username,
+                Pin = pin,
+               
+            };
+
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+
+            message = "🎉 Account created successfully! Redirecting to login...";
+            isError = false;
+
+            await Task.Delay(1500);
+            nav.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            message = $"Error: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

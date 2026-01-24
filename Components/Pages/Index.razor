@@ -1,0 +1,90 @@
+﻿@page "/"
+@inject NavigationManager Nav
+
+<PageTitle>BrainDumpster - Your Personal Journal</PageTitle>
+
+<div class="text-center mt-5">
+    <h1 class="display-4">📖 BrainDumpster</h1>
+    <p class="lead mt-3">Your personal journal app for daily reflections</p>
+
+    <div class="mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">🔑 Login</h5>
+                        <p class="card-text">Access your journal</p>
+                        <button @onclick="GoToLogin" class="btn btn-primary">Login</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">📝 Register</h5>
+                        <p class="card-text">Create new account</p>
+                        <button @onclick="GoToRegister" class="btn btn-success">Register</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="features mt-5">
+        <h3>✨ Features</h3>
+        <div class="row justify-content-center mt-3">
+            <div class="col-md-2 m-2">
+                <div class="feature-item p-3">
+                    <h4>📅</h4>
+                    <p>Daily Journal</p>
+                </div>
+            </div>
+            <div class="col-md-2 m-2">
+                <div class="feature-item p-3">
+                    <h4>📊</h4>
+                    <p>Calendar View</p>
+                </div>
+            </div>
+            <div class="col-md-2 m-2">
+                <div class="feature-item p-3">
+                    <h4>⏳</h4>
+                    <p>Timeline</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .feature-item {
+        background: #f8f9fa;
+        border-radius: 10px;
+        transition: transform 0.2s;
+    }
+
+        .feature-item:hover {
+            transform: translateY(-5px);
+            background: #e9ecef;
+        }
+
+    .card {
+        transition: transform 0.2s;
+    }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+</style>
+
+@code {
+    private void GoToLogin()
+    {
+        Nav.NavigateTo("/login");
+    }
+
+    private void GoToRegister()
+    {
+        Nav.NavigateTo("/register");
+    }
+}

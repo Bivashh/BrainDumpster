@@ -1,0 +1,346 @@
+﻿@page "/calendar"
+@using BrainDumpster.Data
+@using BrainDumpster.Model
+@inject AppDbContext db
+@inject IJSRuntime JS
+
+<PageTitle>Calendar - BrainDumpster</PageTitle>
+
+<div class="container mt-4">
+    <h1 class="text-center mb-4">📅 Journal Calendar</h1>
+
+    <!-- Month Navigation -->
+    <div class="row mb-4">
+        <div class="col text-start">
+            <button class="btn btn-primary" @onclick="PreviousMonth">
+                ← Previous
+            </button>
+        </div>
+        <div class="col text-center">
+            <h3>@currentDate.ToString("MMMM yyyy")</h3>
+        </div>
+        <div class="col text-end">
+            <button class="btn btn-primary" @onclick="NextMonth">
+                Next →
+            </button>
+        </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="calendar">
+        <!-- Day Headers -->
+        <div class="row text-center fw-bold bg-light py-2">
+            @foreach (var day in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+            {
+                <div class="col p-2">@day</div>
+            }
+        </div>
+
+        <!-- Calendar Days -->
+        @foreach (var week in calendarWeeks)
+        {
+            <div class="row">
+                @foreach (var day in week)
+                {
+                    <div class="col p-2 border text-center day-cell
+                                        @(day.IsToday ? "today" : "")
+                                        @(day.IsCurrentMonth ? "" : "text-muted")
+                                        @(day.HasEntry ? "has-entry" : "")"
+                         style="height: 80px; cursor: pointer;"
+                         @onclick="@(() => ShowDayEntries(day.Date))">
+
+                        <div class="d-flex justify-content-between">
+                            <span class="day-number">@day.Date.Day</span>
+                            @if (day.HasEntry)
+                            {
+                                <span class="badge bg-success">@day.EntryCount</span>
+                            }
+                        </div>
+
+                        @if (day.HasEntry)
+                        {
+                            <div class="mt-1">
+                                <span class="mood-icon">@day.Mood</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Selected Day Entries -->
+    @if (selectedDate.HasValue && dayEntries.Any())
+    {
+        <div class="mt-5">
+            <h4>Entries for @selectedDate.Value.ToString("MMMM d, yyyy")</h4>
+            <button class="btn btn-sm btn-outline-secondary mb-3" @onclick="ClearSelection">
+                Close
+            </button>
+
+            <div class="list-group">
+                @foreach (var entry in dayEntries)
+                {
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <small>@entry.EntryDate.ToString("h:mm tt")</small>
+                            <span class="mood-badge">@entry.PrimaryMood</span>
+                        </div>
+                        <div class="mt-2">
+                            @((MarkupString)GetPreview(entry.Content))
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Loading/Error Messages -->
+    @if (isLoading)
+    {
+        <div class="text-center mt-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-4">@errorMessage</div>
+    }
+</div>
+
+<style>
+    .day-cell {
+        transition: all 0.2s;
+    }
+
+        .day-cell:hover {
+            background-color: #f8f9fa;
+            transform: scale(1.05);
+        }
+
+    .today {
+        background-color: #e3f2fd !important;
+        font-weight: bold;
+        border: 2px solid #2196F3 !important;
+    }
+
+    .has-entry {
+        background-color: #e8f5e9 !important;
+    }
+
+    .day-number {
+        font-size: 1.1em;
+    }
+
+    .mood-icon {
+        font-size: 1.2em;
+    }
+
+    .mood-badge {
+        font-size: 1.5em;
+    }
+</style>
+
+@code {
+    // Simple data model
+    private class DayInfo
+    {
+        public DateTime Date { get; set; }
+        public bool IsToday { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public bool HasEntry { get; set; }
+        public string Mood { get; set; } = "";
+        public int EntryCount { get; set; }
+    }
+
+    private DateTime currentDate = DateTime.Today;
+    private List<List<DayInfo>> calendarWeeks = new();
+    private DateTime? selectedDate = null;
+    private List<JournalEntry> dayEntries = new();
+    private int loggedUserId = 0;
+    private bool isLoading = false;
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get logged user ID
+            var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
+            if (!string.IsNullOrEmpty(userIdStr))
+            {
+                loggedUserId = int.Parse(userIdStr);
+                await GenerateCalendar();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task GenerateCalendar()
+    {
+        try
+        {
+            isLoading = true;
+            calendarWeeks.Clear();
+
+            // First day of the month
+            var firstDay = new DateTime(currentDate.Year, currentDate.Month, 1);
+
+            // Last day of the month
+            var lastDay = firstDay.AddMonths(1).AddDays(-1);
+
+            // Start from Sunday of the week containing first day
+            var startDate = firstDay.AddDays(-(int)firstDay.DayOfWeek);
+
+            // End on Saturday of the week containing last day
+            var endDate = lastDay.AddDays(6 - (int)lastDay.DayOfWeek);
+
+            // Get all entries for this month
+            var entries = await GetMonthEntries(firstDay, lastDay);
+
+            // Create weeks
+            var currentWeek = new List<DayInfo>();
+
+            for (var date = startDate; date <= endDate; date = date.AddDays(1))
+            {
+                var dayInfo = new DayInfo
+                {
+                    Date = date,
+                    IsToday = date.Date == DateTime.Today,
+                    IsCurrentMonth = date.Month == currentDate.Month
+                };
+
+                // Check if this day has entries
+                var dayEntry = entries.FirstOrDefault(e => e.EntryDate.Date == date.Date);
+                if (dayEntry != null)
+                {
+                    dayInfo.HasEntry = true;
+                    dayInfo.Mood = dayEntry.PrimaryMood;
+                    dayInfo.EntryCount = entries.Count(e => e.EntryDate.Date == date.Date);
+                }
+
+                currentWeek.Add(dayInfo);
+
+                // Start new week after Saturday
+                if (date.DayOfWeek == DayOfWeek.Saturday)
+                {
+                    calendarWeeks.Add(currentWeek);
+                    currentWeek = new List<DayInfo>();
+                }
+            }
+
+            // Add last week if not empty
+            if (currentWeek.Any())
+            {
+                calendarWeeks.Add(currentWeek);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error generating calendar: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<List<JournalEntry>> GetMonthEntries(DateTime start, DateTime end)
+    {
+        if (loggedUserId == 0) return new List<JournalEntry>();
+
+        return await Task.Run(() =>
+        {
+            try
+            {
+                return db.JournalEntries
+                    .Where(e => e.UserId == loggedUserId &&
+                               e.EntryDate.Date >= start.Date &&
+                               e.EntryDate.Date <= end.Date)
+                    .OrderBy(e => e.EntryDate)
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                // Return empty list if database error
+                return new List<JournalEntry>();
+            }
+        });
+    }
+
+    private async Task ShowDayEntries(DateTime date)
+    {
+        try
+        {
+            selectedDate = date;
+            dayEntries = await GetDayEntries(date);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading entries: {ex.Message}";
+        }
+    }
+
+    private async Task<List<JournalEntry>> GetDayEntries(DateTime date)
+    {
+        if (loggedUserId == 0) return new List<JournalEntry>();
+
+        return await Task.Run(() =>
+        {
+            try
+            {
+                return db.JournalEntries
+                    .Where(e => e.UserId == loggedUserId &&
+                               e.EntryDate.Date == date.Date)
+                    .OrderBy(e => e.EntryDate)
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                return new List<JournalEntry>();
+            }
+        });
+    }
+
+    private async Task PreviousMonth()
+    {
+        currentDate = currentDate.AddMonths(-1);
+        await GenerateCalendar();
+        selectedDate = null;
+        dayEntries.Clear();
+    }
+
+    private async Task NextMonth()
+    {
+        currentDate = currentDate.AddMonths(1);
+        await GenerateCalendar();
+        selectedDate = null;
+        dayEntries.Clear();
+    }
+
+    private void ClearSelection()
+    {
+        selectedDate = null;
+        dayEntries.Clear();
+    }
+
+    private string GetPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+
+        // Remove HTML tags for preview
+        var plainText = System.Text.RegularExpressions.Regex.Replace(content, "<.*?>", " ");
+
+        // Limit length
+        if (plainText.Length > 100)
+            return plainText.Substring(0, 100) + "...";
+
+        return plainText;
+    }
+}

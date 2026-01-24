@@ -1,0 +1,114 @@
+﻿@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<div class="sidebar">
+    <h3>BrainDumpster</h3>
+
+    @if (loggedUserId > 0)
+    {
+        <div class="user-info mb-3">
+            <small>User ID: @loggedUserId</small>
+            <button class="btn btn-sm btn-outline-danger mt-2" @onclick="Logout">
+                Logout
+            </button>
+        </div>
+    }
+
+    <ul>
+        @if (loggedUserId > 0)
+        {   
+            <li><a href="/dashboard"> Dashboard</a></li>
+            <li><a href="/entry">📝 Today's Journal</a></li>
+            <li><a href="/calendar">📅 Calendar</a></li>
+            <li><a href="/timeline">⏳ Timeline</a></li>
+            <li><a href="/settings">Settings</a></li>
+        }
+        else
+        {
+            <li><a href="/">🏠 Home</a></li>
+            <li><a href="/login">🔑 Login</a></li>
+            <li><a href="/register">📝 Register</a></li>
+        }
+    </ul>
+</div>
+
+<style>
+    .sidebar {
+        width: 200px;
+        background-color: #1e1e1e;
+        color: white;
+        padding: 20px;
+    }
+
+        .sidebar h3 {
+            margin-bottom: 20px;
+            color: #4dabf7;
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .sidebar li {
+            margin-bottom: 10px;
+        }
+
+        .sidebar a {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+            display: block;
+            padding: 8px 12px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+
+            .sidebar a:hover {
+                background-color: #2d2d2d;
+                text-decoration: none;
+            }
+
+    .user-info {
+        padding: 10px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 5px;
+        font-size: 0.9rem;
+    }
+</style>
+
+@code {
+    private int loggedUserId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserInfo();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Keep checking login status
+        await LoadUserInfo();
+    }
+
+    private async Task LoadUserInfo()
+    {
+        var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
+        if (!string.IsNullOrEmpty(userIdStr))
+        {
+            loggedUserId = int.Parse(userIdStr);
+        }
+        else
+        {
+            loggedUserId = 0;
+        }
+    }
+
+    private async Task Logout()
+    {
+        await JS.InvokeVoidAsync("localStorage.removeItem", "loggedUserId");
+
+        // Force complete refresh by navigating to home
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}

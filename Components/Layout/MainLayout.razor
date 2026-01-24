@@ -1,0 +1,63 @@
+﻿@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="main-layout">
+    @if (isLoggedIn)
+    {
+        <NavMenu />
+    }
+
+    <div class="content">
+        @Body
+    </div>
+</div>
+
+<style>
+    .main-layout {
+        display: flex;
+        height: 100vh;
+    }
+
+    .content {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+    private bool isLoggedIn = false;
+    private System.Threading.Timer? refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckLoginStatus();
+
+        // Check login status every 1 second
+        refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await CheckLoginStatus();
+            });
+        }, null, 1000, 1000);
+    }
+
+    private async Task CheckLoginStatus()
+    {
+        var userId = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
+        var newStatus = !string.IsNullOrEmpty(userId);
+
+        if (newStatus != isLoggedIn)
+        {
+            isLoggedIn = newStatus;
+            StateHasChanged(); // Force UI update
+        }
+    }
+
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+}

@@ -1,0 +1,427 @@
+﻿@page "/timeline"
+@using BrainDumpster.Data
+@using BrainDumpster.Model
+@inject AppDbContext db
+@inject IJSRuntime JS
+
+<PageTitle>Timeline - BrainDumpster</PageTitle>
+
+<div class="container mt-4">
+    <h1 class="text-center mb-4">⏳ Journal Timeline</h1>
+
+    <!-- Simple Filter -->
+    <div class="card p-3 mb-4">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Show entries from:</label>
+                <select class="form-select" @onchange="HandleDateChange">
+                    <option value="7">Last 7 Days</option>
+                    <option value="30" selected>Last 30 Days</option>
+                    <option value="90">Last 90 Days</option>
+                    <option value="0">All Time</option>
+                </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label class="form-label">Mood:</label>
+                <select class="form-select" @onchange="HandleMoodChange">
+                    <option value="">All Moods</option>
+                    <option value="😄">😄 Happy</option>
+                    <option value="🙂">🙂 Smiling</option>
+                    <option value="😐">😐 Neutral</option>
+                    <option value="😔">😔 Sad</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline -->
+    @if (isLoading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">Loading your timeline...</p>
+        </div>
+    }
+    else if (entries.Any())
+    {
+        <div class="timeline-simple">
+            @foreach (var entry in entries)
+            {
+                <div class="timeline-card mb-4">
+                    <div class="timeline-date">
+                        <div class="date-day">@entry.EntryDate.ToString("dd")</div>
+                        <div class="date-month">@entry.EntryDate.ToString("MMM")</div>
+                        <div class="date-year">@entry.EntryDate.ToString("yyyy")</div>
+                    </div>
+
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5>@entry.EntryDate.ToString("dddd")</h5>
+                                <small class="text-muted">@entry.EntryDate.ToString("h:mm tt")</small>
+                            </div>
+                            <span class="mood-display">@entry.PrimaryMood</span>
+                        </div>
+
+                        <div class="entry-text mt-3">
+                            @((MarkupString)GetPreview(entry.Content))
+                        </div>
+
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="@(() => ShowEntry(entry.Id))">
+                                View Full Entry
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary ms-2"
+                                    @onclick="@(() => ShowStats(entry.Content, entry.PrimaryMood))">
+                                Show Stats
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="text-center my-5">
+            <div class="alert alert-info">
+                <h4>📝 No journal entries found</h4>
+                <p class="mb-3">Start writing to build your timeline!</p>
+                <a href="/entry" class="btn btn-primary">Write Your First Entry</a>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Simple Modal -->
+@if (showModal && selectedEntry != null)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="modal-simple">
+        <div class="modal-header">
+            <h5>
+                @selectedEntry.EntryDate.ToString("MMMM d, yyyy")
+                <span class="ms-2">@selectedEntry.PrimaryMood</span>
+            </h5>
+            <button class="btn-close" @onclick="CloseModal"></button>
+        </div>
+        <div class="modal-body">
+            <div class="full-content">
+                @((MarkupString)selectedEntry.Content)
+            </div>
+
+            <div class="mt-4 p-3 bg-light">
+                <h6>📊 Entry Stats</h6>
+                <div class="row mt-2">
+                    <div class="col-4 text-center">
+                        <div class="stat-num">@CountWords(selectedEntry.Content)</div>
+                        <small>Words</small>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="stat-num">@CalculateReadingTime(selectedEntry.Content)</div>
+                        <small>Min Read</small>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="stat-num">@selectedEntry.Content.Length</div>
+                        <small>Characters</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseModal">Close</button>
+        </div>
+    </div>
+}
+
+<style>
+    .timeline-simple {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .timeline-card {
+        display: flex;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+        .timeline-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+    .timeline-date {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        text-align: center;
+        min-width: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .date-day {
+        font-size: 2rem;
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .date-month {
+        font-size: 1.2rem;
+        margin: 5px 0;
+    }
+
+    .date-year {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+
+    .timeline-content {
+        flex: 1;
+        padding: 20px;
+    }
+
+    .mood-display {
+        font-size: 2rem;
+    }
+
+    .entry-text {
+        max-height: 100px;
+        overflow: hidden;
+        position: relative;
+        line-height: 1.6;
+    }
+
+        .entry-text::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(transparent, white);
+        }
+
+    /* Modal Styles */
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+    }
+
+    .modal-simple {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        border-radius: 10px;
+        z-index: 1001;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-footer {
+        padding: 15px 20px;
+        border-top: 1px solid #dee2e6;
+        text-align: right;
+    }
+
+    .full-content {
+        line-height: 1.8;
+    }
+
+    .stat-num {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+</style>
+
+@code {
+    private List<JournalEntry> entries = new();
+    private JournalEntry? selectedEntry = null;
+    private bool showModal = false;
+    private bool isLoading = false;
+    private int loggedUserId = 0;
+
+    // Filters
+    private string dateFilter = "30";
+    private string moodFilter = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get logged user ID
+            var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
+            if (!string.IsNullOrEmpty(userIdStr))
+            {
+                loggedUserId = int.Parse(userIdStr);
+                await LoadTimeline();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+
+    private async Task LoadTimeline()
+    {
+        if (loggedUserId == 0) return;
+
+        try
+        {
+            isLoading = true;
+            entries.Clear();
+            StateHasChanged();
+
+            // Calculate date range
+            var startDate = DateTime.Now;
+            if (dateFilter != "0")
+            {
+                var days = int.Parse(dateFilter);
+                startDate = DateTime.Now.AddDays(-days);
+            }
+
+            // Get entries
+            var allEntries = await Task.Run(() =>
+            {
+                var query = db.JournalEntries
+                    .Where(e => e.UserId == loggedUserId);
+
+                if (dateFilter != "0")
+                {
+                    query = query.Where(e => e.EntryDate >= startDate);
+                }
+
+                if (!string.IsNullOrEmpty(moodFilter))
+                {
+                    query = query.Where(e => e.PrimaryMood == moodFilter);
+                }
+
+                return query
+                    .OrderByDescending(e => e.EntryDate)
+                    .Take(50) // Limit to 50 entries
+                    .ToList();
+            });
+
+            entries = allEntries;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading timeline: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async void HandleDateChange(ChangeEventArgs e)
+    {
+        dateFilter = e.Value?.ToString() ?? "30";
+        await LoadTimeline();
+    }
+
+    private async void HandleMoodChange(ChangeEventArgs e)
+    {
+        moodFilter = e.Value?.ToString() ?? "";
+        await LoadTimeline();
+    }
+
+    private string GetPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+
+        // Remove HTML tags
+        var plainText = System.Text.RegularExpressions.Regex.Replace(content, "<.*?>", " ");
+
+        // Limit length
+        if (plainText.Length > 200)
+            return plainText.Substring(0, 200) + "...";
+
+        return plainText;
+    }
+
+    private int CountWords(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return 0;
+
+        var text = System.Text.RegularExpressions.Regex.Replace(content, "<.*?>", " ");
+        return text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private int CalculateReadingTime(string content)
+    {
+        var wordCount = CountWords(content);
+        var minutes = (int)Math.Ceiling(wordCount / 200.0);
+        return Math.Max(1, minutes);
+    }
+
+    private async Task ShowEntry(int entryId)
+    {
+        try
+        {
+            selectedEntry = await Task.Run(() =>
+                db.JournalEntries.FirstOrDefault(e => e.Id == entryId));
+
+            if (selectedEntry != null)
+            {
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+
+    private void ShowStats(string content, string mood)
+    {
+        var wordCount = CountWords(content);
+        var readingTime = CalculateReadingTime(content);
+
+        // Simple analysis
+        var analysis = $"📝 {wordCount} words\n" +
+                      $"⏱️ {readingTime} minute read\n" +
+                      $"😊 Mood: {mood}";
+
+        Application.Current?.MainPage?.DisplayAlert("Entry Stats", analysis, "OK");
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        selectedEntry = null;
+    }
+}

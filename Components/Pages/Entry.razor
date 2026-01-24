@@ -1,0 +1,212 @@
+﻿@page "/entry"
+@using BrainDumpster.Data
+@using BrainDumpster.Model
+@inject AppDbContext db
+@inject IJSRuntime JS
+@inject NavigationManager nav
+
+<h1>New Journal Entry</h1>
+
+@if (loggedUserId > 0)
+{
+    <div>
+        <div class="mb-3">
+            <label class="form-label">Content</label>
+            <!-- Editor container (MUST match ID passed to initQuill) -->
+            <div id="editor" style="height: 200px;"></div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Mood</label>
+            <div>
+                @foreach (var m in new[] { "😄", "🙂", "😐", "😔" })
+                {
+                    <button class="btn @(mood == m ? "btn-primary" : "btn-outline-primary") me-2"
+                            @onclick="() => mood = m">
+                        @m
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Tags</label>
+            <div>
+                @foreach (var t in new[] { "Work", "Health", "Fitness", "Study", "Travel", "Personal", "Reflection", "Planning" })
+                {
+                    <button class="btn btn-sm @(selectedTags.Contains(t) ? "btn-primary" : "btn-outline-secondary") me-2 mb-2"
+                            @onclick="() => ToggleTag(t)">
+                        @t
+                    </button>
+                }
+            </div>
+        </div>
+
+        <button class="btn btn-success" @onclick="SaveEntry">
+            Save Entry
+        </button>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3">
+                @message
+            </div>
+        }
+
+        <h2 class="mt-5">Recent Entries</h2>
+        @if (entries.Any())
+        {
+            @foreach (var e in entries.OrderByDescending(x => x.EntryDate).Take(5))
+            {
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <small>@e.EntryDate.ToString("MMMM dd, yyyy h:mm tt") - @e.PrimaryMood</small>
+                    </div>
+                    <div class="card-body">
+                        <!-- IMPORTANT: Cast to MarkupString to render HTML -->
+                        @((MarkupString)e.Content)
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+else
+{
+    <div class="alert alert-warning">
+        Please log in to view your journal.
+        <button class="btn btn-sm btn-outline-warning ms-2" @onclick="GoToLogin">Login</button>
+    </div>
+}
+
+@code {
+    private string mood = "🙂";
+    private List<string> selectedTags = new();
+    private List<JournalEntry> entries = new();
+    private string message = "";
+    private bool isError = false;
+    private int loggedUserId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get user ID from localStorage
+            var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
+            if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int userId))
+            {
+                loggedUserId = userId;
+                LoadEntries();
+            }
+            else
+            {
+                nav.NavigateTo("/login");
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Error: {ex.Message}";
+            isError = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && loggedUserId > 0)
+        {
+            try
+            {
+                // Initialize Quill editor with ID "editor"
+                await JS.InvokeVoidAsync("initQuill", "editor");
+                message = "Rich text editor ready!";
+            }
+            catch (Exception ex)
+            {
+                message = $"Failed to load editor: {ex.Message}";
+                isError = true;
+            }
+        }
+    }
+
+    private void ToggleTag(string tag)
+    {
+        if (selectedTags.Contains(tag))
+            selectedTags.Remove(tag);
+        else
+            selectedTags.Add(tag);
+    }
+
+    private void LoadEntries()
+    {
+        try
+        {
+            entries = db.JournalEntries
+                .Where(e => e.UserId == loggedUserId)
+                .OrderByDescending(e => e.EntryDate)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            message = $"Error loading entries: {ex.Message}";
+            isError = true;
+        }
+    }
+
+    private async Task SaveEntry()
+    {
+        try
+        {
+            // Get HTML content from Quill
+            var htmlContent = await JS.InvokeAsync<string>("getQuillHtml");
+
+            if (string.IsNullOrWhiteSpace(htmlContent) || htmlContent == "<p><br></p>")
+            {
+                message = "Please write something!";
+                isError = true;
+                return;
+            }
+
+            var entry = new JournalEntry
+            {
+                UserId = loggedUserId,
+                Content = htmlContent,
+                PrimaryMood = mood,
+                EntryDate = DateTime.Now
+            };
+
+            // Add tags
+            if (selectedTags.Any())
+            {
+                entry.Tags = selectedTags.Select(t => new Tag { Name = t }).ToList();
+            }
+
+            // Save to database
+            db.JournalEntries.Add(entry);
+            await db.SaveChangesAsync();
+
+            // Clear editor
+            await JS.InvokeVoidAsync("clearQuill");
+
+            // Clear form
+            selectedTags.Clear();
+            mood = "🙂";
+
+            // Show success
+            message = "Entry saved successfully!";
+            isError = false;
+
+            // Reload entries
+            LoadEntries();
+        }
+        catch (Exception ex)
+        {
+            message = $"Error saving: {ex.Message}";
+            isError = true;
+        }
+    }
+
+    private void GoToLogin()
+    {
+        nav.NavigateTo("/login");
+    }
+}
