@@ -15,6 +15,13 @@ window.initQuill = (editorId) => {
     });
 };
 
+function setQuillHtml(editorId, html) {
+    var editor = document.querySelector(`#${editorId} .ql-editor`);
+    if (editor) {
+        editor.innerHTML = html;
+    }
+}
+
 window.getQuillHtml = () => {
     if (!quill) return "";
     return quill.root.innerHTML;

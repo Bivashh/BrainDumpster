@@ -12,6 +12,8 @@
     <!-- Quill CSS (EXACTLY as in PPT) -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
     <link rel="icon" href="data:,">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </head>
 <body>
     <div class="status-bar-safe-area"></div>
@@ -40,6 +42,42 @@
         }
 
         Blazor.start();
+    </script>
+    <script>
+        function downloadPdf(base64Data, fileName) {
+            try {
+                // Convert base64 to bytes
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+
+                // Create PDF blob
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+
+                // Create download link
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+
+                // Trigger download
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Clean up
+                URL.revokeObjectURL(url);
+                return true;
+            } catch (error) {
+                console.error('PDF download error:', error);
+                return false;
+            }
+        }
+
+        window.downloadPdf = downloadPdf;
     </script>
 </body>
 </html>

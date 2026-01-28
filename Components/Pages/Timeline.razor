@@ -9,6 +9,17 @@
 <div class="container mt-4">
     <h1 class="text-center mb-4">⏳ Journal Timeline</h1>
 
+    <!-- Search Filter -->
+    <div class="card p-3 mb-4">
+        <div class="row">
+            <div class="col-md-12 mb-3">
+                <label class="form-label">Search entries:</label>
+                <input type="text" class="form-control" placeholder="Search by content..."
+                       @bind="searchQuery" @bind:event="oninput" />
+            </div>
+        </div>
+    </div>
+
     <!-- Simple Filter -->
     <div class="card p-3 mb-4">
         <div class="row">
@@ -72,10 +83,6 @@
                             <button class="btn btn-sm btn-outline-primary" @onclick="@(() => ShowEntry(entry.Id))">
                                 View Full Entry
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary ms-2"
-                                    @onclick="@(() => ShowStats(entry.Content, entry.PrimaryMood))">
-                                Show Stats
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -135,136 +142,6 @@
     </div>
 }
 
-<style>
-    .timeline-simple {
-        max-width: 800px;
-        margin: 0 auto;
-    }
-
-    .timeline-card {
-        display: flex;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        overflow: hidden;
-        transition: transform 0.2s;
-    }
-
-        .timeline-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-    .timeline-date {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        text-align: center;
-        min-width: 100px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
-    .date-day {
-        font-size: 2rem;
-        font-weight: bold;
-        line-height: 1;
-    }
-
-    .date-month {
-        font-size: 1.2rem;
-        margin: 5px 0;
-    }
-
-    .date-year {
-        font-size: 0.9rem;
-        opacity: 0.9;
-    }
-
-    .timeline-content {
-        flex: 1;
-        padding: 20px;
-    }
-
-    .mood-display {
-        font-size: 2rem;
-    }
-
-    .entry-text {
-        max-height: 100px;
-        overflow: hidden;
-        position: relative;
-        line-height: 1.6;
-    }
-
-        .entry-text::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 20px;
-            background: linear-gradient(transparent, white);
-        }
-
-    /* Modal Styles */
-    .modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-    }
-
-    .modal-simple {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        width: 90%;
-        max-width: 600px;
-        max-height: 80vh;
-        border-radius: 10px;
-        z-index: 1001;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .modal-header {
-        padding: 15px 20px;
-        border-bottom: 1px solid #dee2e6;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .modal-body {
-        padding: 20px;
-        overflow-y: auto;
-        flex: 1;
-    }
-
-    .modal-footer {
-        padding: 15px 20px;
-        border-top: 1px solid #dee2e6;
-        text-align: right;
-    }
-
-    .full-content {
-        line-height: 1.8;
-    }
-
-    .stat-num {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #667eea;
-    }
-</style>
-
 @code {
     private List<JournalEntry> entries = new();
     private JournalEntry? selectedEntry = null;
@@ -275,6 +152,18 @@
     // Filters
     private string dateFilter = "30";
     private string moodFilter = "";
+
+    // Search property with LoadTimeline trigger
+    private string _searchQuery = "";
+    private string searchQuery
+    {
+        get => _searchQuery;
+        set
+        {
+            _searchQuery = value;
+            _ = LoadTimeline(); // reload timeline whenever user types
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -301,48 +190,44 @@
         try
         {
             isLoading = true;
-            entries.Clear();
-            StateHasChanged();
+            StateHasChanged(); // Show loading spinner
 
             // Calculate date range
-            var startDate = DateTime.Now;
-            if (dateFilter != "0")
+            DateTime? startDate = null;
+            if (dateFilter != "0" && int.TryParse(dateFilter, out int days))
             {
-                var days = int.Parse(dateFilter);
                 startDate = DateTime.Now.AddDays(-days);
             }
 
             // Get entries
-            var allEntries = await Task.Run(() =>
-            {
-                var query = db.JournalEntries
-                    .Where(e => e.UserId == loggedUserId);
+            var query = db.JournalEntries
+                .Where(e => e.UserId == loggedUserId);
 
-                if (dateFilter != "0")
-                {
-                    query = query.Where(e => e.EntryDate >= startDate);
-                }
+            if (startDate.HasValue)
+                query = query.Where(e => e.EntryDate >= startDate.Value);
 
-                if (!string.IsNullOrEmpty(moodFilter))
-                {
-                    query = query.Where(e => e.PrimaryMood == moodFilter);
-                }
+            if (!string.IsNullOrEmpty(moodFilter))
+                query = query.Where(e => e.PrimaryMood == moodFilter);
 
-                return query
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+                query = query.Where(e => e.Content.Contains(searchQuery));
+
+            entries = await Task.Run(() =>
+                query
                     .OrderByDescending(e => e.EntryDate)
-                    .Take(50) // Limit to 50 entries
-                    .ToList();
-            });
-
-            entries = allEntries;
+                    .Take(100)
+                    .ToList()
+            );
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading timeline: {ex.Message}");
+            entries = new List<JournalEntry>();
         }
         finally
         {
             isLoading = false;
+            StateHasChanged(); // Hide loading spinner
         }
     }
 
@@ -361,23 +246,17 @@
     private string GetPreview(string content)
     {
         if (string.IsNullOrEmpty(content)) return "";
-
-        // Remove HTML tags
         var plainText = System.Text.RegularExpressions.Regex.Replace(content, "<.*?>", " ");
-
-        // Limit length
-        if (plainText.Length > 200)
-            return plainText.Substring(0, 200) + "...";
-
-        return plainText;
+        plainText = System.Net.WebUtility.HtmlDecode(plainText);
+        plainText = plainText.Trim();
+        return plainText.Length > 250 ? plainText.Substring(0, 250) + "..." : plainText;
     }
 
     private int CountWords(string content)
     {
-        if (string.IsNullOrWhiteSpace(content))
-            return 0;
-
+        if (string.IsNullOrWhiteSpace(content)) return 0;
         var text = System.Text.RegularExpressions.Regex.Replace(content, "<.*?>", " ");
+        text = System.Net.WebUtility.HtmlDecode(text);
         return text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
     }
 
@@ -398,30 +277,19 @@
             if (selectedEntry != null)
             {
                 showModal = true;
+                StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            Console.WriteLine($"Error showing entry: {ex.Message}");
         }
-    }
-
-    private void ShowStats(string content, string mood)
-    {
-        var wordCount = CountWords(content);
-        var readingTime = CalculateReadingTime(content);
-
-        // Simple analysis
-        var analysis = $"📝 {wordCount} words\n" +
-                      $"⏱️ {readingTime} minute read\n" +
-                      $"😊 Mood: {mood}";
-
-        Application.Current?.MainPage?.DisplayAlert("Entry Stats", analysis, "OK");
     }
 
     private void CloseModal()
     {
         showModal = false;
         selectedEntry = null;
+        StateHasChanged();
     }
 }

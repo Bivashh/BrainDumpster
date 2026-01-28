@@ -1,61 +1,37 @@
 ﻿@page "/settings"
-@using BrainDumpster.Data
+@using BrainDumpster.Services
 @using BrainDumpster.Model
-@inject AppDbContext db
+@inject SettingsService SettingsService
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 
-<PageTitle>Settings - BrainDumpster</PageTitle>
+<div class="settings-page">
+    <h1>Settings</h1>
 
-<div class="settings-simple">
-    <!-- Header -->
-    <div class="settings-header">
-        <button class="btn-back" @onclick="GoBack">
-            ← Back
-        </button>
-        <h1>⚙️ Settings</h1>
-    </div>
+    @if (user != null)
+    {
+        <div class="settings-container">
+            <!-- User Info -->
+            <div class="card">
+                <h3>👤 Profile</h3>
+                <p><strong>Username:</strong> @user.Username</p>
+                <button @onclick="ShowUsernameModal" class="btn">Change Username</button>
+                <br />
+                <button @onclick="ShowPinModal" class="btn">Change PIN</button>
+            </div>
 
-    <!-- Profile Card -->
-    <div class="settings-card">
-        <h2>👤 Profile</h2>
-        
-        <!-- Username -->
-        <div class="setting-item">
-            <div class="setting-label">
-                <span>Username</span>
-                <small>Your display name</small>
+            <!-- Stats -->
+            <div class="card">
+                <h3>📊 Stats</h3>
+                <p><strong>Total Entries:</strong> @totalEntries</p>
+                <p><strong>Current Streak:</strong> @currentStreak days</p>
+                <button @onclick="ShowExportModal" class="btn">Export Journals as PDF</button>
             </div>
-            <div class="setting-value">
-                <span>@currentUser?.Username</span>
-                <button @onclick="ShowUsernameForm" class="btn-change">
-                    Change
-                </button>
-            </div>
-        </div>
 
-        <!-- PIN -->
-        <div class="setting-item">
-            <div class="setting-label">
-                <span>PIN</span>
-                <small>4-6 digit security code</small>
-            </div>
-            <div class="setting-value">
-                <span>••••••</span>
-                <button @onclick="ShowPinForm" class="btn-change">
-                    Change
-                </button>
-            </div>
-        </div>
-
-        <!-- Theme -->
-        <div class="setting-item">
-            <div class="setting-label">
-                <span>Theme</span>
-                <small>App appearance</small>
-            </div>
-            <div class="setting-value">
-                <button @onclick="ToggleTheme" class="theme-toggle">
+            <!-- Theme -->
+            <div class="card">
+                <h3>🎨 Theme</h3>
+                <button @onclick="ToggleTheme" class="btn">
                     @if (isDarkMode)
                     {
                         <span>🌙 Dark Mode</span>
@@ -66,550 +42,365 @@
                     }
                 </button>
             </div>
-        </div>
-    </div>
 
-    <!-- Data Card -->
-    <div class="settings-card">
-        <h2>📊 Data</h2>
-        
-        <div class="setting-item">
-            <div class="setting-label">
-                <span>Export Journals</span>
-                <small>Download all your entries</small>
-            </div>
-            <div class="setting-value">
-                <button @onclick="ExportJournals" class="btn-export">
-                    📤 Export
-                </button>
+            <!-- Logout -->
+            <div class="card">
+                <h3>🔓 Account</h3>
+                <button @onclick="Logout" class="btn btn-danger">Logout</button>
             </div>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat">
-                <div class="stat-number">@totalEntries</div>
-                <div class="stat-label">Total Entries</div>
-            </div>
-            <div class="stat">
-                <div class="stat-number">@currentStreak</div>
-                <div class="stat-label">Day Streak</div>
-            </div>
-            <div class="stat">
-                <div class="stat-number">@memberSince</div>
-                <div class="stat-label">Member Since</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Account Info -->
-    <div class="settings-card">
-        <h2>ℹ️ Account Info</h2>
-        
-        <div class="account-info">
-            <div class="info-row">
-                <span class="info-label">User ID:</span>
-                <span class="info-value">#@currentUser?.Id</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Account Created:</span>
-                <span class="info-value">@memberSince</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Journal Entries:</span>
-                <span class="info-value">@totalEntries entries</span>
-            </div>
-        </div>
-
-        <button @onclick="Logout" class="btn-logout">
-            🔓 Logout
-        </button>
-    </div>
-
-    <!-- Username Form Modal -->
-    @if (showUsernameForm)
-    {
-        <div class="modal-overlay" @onclick="CloseModal"></div>
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Change Username</h3>
-                <button @onclick="CloseModal" class="modal-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Current Username</label>
-                    <div class="current-value">@currentUser?.Username</div>
-                </div>
-                <div class="form-group">
-                    <label>New Username</label>
-                    <input type="text" 
-                           @bind="newUsername"
-                           placeholder="Enter new username"
-                           class="form-input"
-                           @onkeypress="@((e) => { if (e.Key == "Enter") SaveUsername(); })" />
-                </div>
-                @if (!string.IsNullOrEmpty(message))
-                {
-                    <div class="alert @(isError ? "error" : "success")">
-                        @message
-                    </div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button @onclick="CloseModal" class="btn-cancel">Cancel</button>
-                <button @onclick="SaveUsername" class="btn-save" disabled="@isSaving">
-                    @if (isSaving)
+        <!-- Username Modal -->
+        @if (showUsernameModal)
+        {
+            <div class="modal">
+                <div class="modal-content">
+                    <h3>Change Username</h3>
+                    <p>Current: <strong>@user.Username</strong></p>
+                    <input type="text" @bind="newUsername" placeholder="New username" class="form-control" />
+                    <br />
+                    @if (!string.IsNullOrEmpty(message))
                     {
-                        <span class="spinner"></span>
+                        <div class="alert @(isError ? "alert-danger" : "alert-success")">
+                            @message
+                        </div>
                     }
-                    Save Changes
-                </button>
+                    <div class="modal-actions">
+                        <button @onclick="CloseModal" class="btn">Cancel</button>
+                        <button @onclick="SaveUsername" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save</span>
+                            }
+                        </button>
+                    </div>
+                </div>
             </div>
-        </div>
+        }
+
+        <!-- PIN Modal -->
+        @if (showPinModal)
+        {
+            <div class="modal">
+                <div class="modal-content">
+                    <h3>Change PIN</h3>
+                    <input type="password" @bind="currentPin" placeholder="Current PIN" class="form-control" />
+                    <br />
+                    <input type="password" @bind="newPin" placeholder="New PIN (4-6 digits)" maxlength="6" class="form-control" />
+                    <br />
+                    <input type="password" @bind="confirmPin" placeholder="Confirm New PIN" maxlength="6" class="form-control" />
+                    <br />
+                    @if (!string.IsNullOrEmpty(message))
+                    {
+                        <div class="alert @(isError ? "alert-danger" : "alert-success")">
+                            @message
+                        </div>
+                    }
+                    <div class="modal-actions">
+                        <button @onclick="CloseModal" class="btn">Cancel</button>
+                        <button @onclick="SavePin" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Change PIN</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Export Modal -->
+        @if (showExportModal)
+        {
+            <div class="modal">
+                <div class="modal-content">
+                    <h3>📤 Export Journals as PDF</h3>
+
+                    <div class="export-options">
+                        <button @onclick="SetExportTypeAll" class="@(exportType == "all" ? "export-btn-active" : "export-btn")">
+                            📄 All Journals
+                        </button>
+                        <button @onclick="SetExportTypeDate" class="@(exportType == "date" ? "export-btn-active" : "export-btn")">
+                            📅 Specific Date
+                        </button>
+                        <button @onclick="SetExportTypeRange" class="@(exportType == "range" ? "export-btn-active" : "export-btn")">
+                            📆 Date Range
+                        </button>
+                    </div>
+
+                    @if (exportType == "date")
+                    {
+                        <div>
+                            <label>Select Date:</label>
+                            <input type="date" @bind="selectedDate" @bind:format="yyyy-MM-dd" class="form-control" />
+                        </div>
+                    }
+
+                    @if (exportType == "range")
+                    {
+                        <div>
+                            <label>Start Date:</label>
+                            <input type="date" @bind="startDate" @bind:format="yyyy-MM-dd" class="form-control" />
+                            <br />
+                            <label>End Date:</label>
+                            <input type="date" @bind="endDate" @bind:format="yyyy-MM-dd" class="form-control" />
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(message))
+                    {
+                        <div class="alert @(isError ? "alert-danger" : "alert-success")">
+                            @message
+                        </div>
+                    }
+
+                    <div class="modal-actions">
+                        <button @onclick="CloseModal" class="btn">Cancel</button>
+                        <button @onclick="ExportPdf" class="btn btn-primary" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span>Generating PDF...</span>
+                            }
+                            else
+                            {
+                                <span>Download PDF</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
     }
-
-    <!-- PIN Form Modal -->
-    @if (showPinForm)
+    else
     {
-        <div class="modal-overlay" @onclick="CloseModal"></div>
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Change PIN</h3>
-                <button @onclick="CloseModal" class="modal-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Current PIN</label>
-                    <input type="password" 
-                           @bind="currentPin"
-                           placeholder="Enter current PIN"
-                           class="form-input" />
-                </div>
-                <div class="form-group">
-                    <label>New PIN (4-6 digits)</label>
-                    <input type="password" 
-                           @bind="newPin"
-                           placeholder="Enter new PIN"
-                           maxlength="6"
-                           class="form-input" />
-                </div>
-                <div class="form-group">
-                    <label>Confirm New PIN</label>
-                    <input type="password" 
-                           @bind="confirmPin"
-                           placeholder="Re-enter new PIN"
-                           maxlength="6"
-                           class="form-input"
-                           @onkeypress="@((e) => { if (e.Key == "Enter") SavePin(); })" />
-                </div>
-                @if (!string.IsNullOrEmpty(message))
-                {
-                    <div class="alert @(isError ? "error" : "success")">
-                        @message
-                    </div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button @onclick="CloseModal" class="btn-cancel">Cancel</button>
-                <button @onclick="SavePin" class="btn-save" disabled="@isSaving">
-                    @if (isSaving)
-                    {
-                        <span class="spinner"></span>
-                    }
-                    Change PIN
-                </button>
-            </div>
-        </div>
+        <p>Please <a href="/login">login</a> to view settings.</p>
     }
 </div>
 
 <style>
-    /* Base */
-    .settings-simple {
-        min-height: 100vh;
-        background: #f8fafc;
-        color: #1e293b;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* General page styling */
+    .settings-page {
+        max-width: 900px;
+        margin: 2rem auto;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 0 1rem;
     }
 
-    /* Header */
-    .settings-header {
-        display: flex;
-        align-items: center;
-        padding: 20px;
-        background: white;
-        border-bottom: 1px solid #e2e8f0;
-    }
-
-    .btn-back {
-        background: none;
-        border: none;
-        font-size: 1rem;
-        cursor: pointer;
-        color: #64748b;
-        padding: 8px 12px;
-        border-radius: 6px;
-    }
-
-    .btn-back:hover {
-        background: #f1f5f9;
-    }
-
-    .settings-header h1 {
-        flex: 1;
+    .settings-page h1 {
         text-align: center;
-        margin: 0;
-        font-size: 1.8rem;
+        margin-bottom: 2rem;
+        font-size: 2.2rem;
     }
 
-    /* Cards */
-    .settings-card {
-        background: white;
-        margin: 20px;
-        padding: 25px;
-        border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    /* Container for cards */
+    .settings-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
     }
 
-    .settings-card h2 {
-        margin: 0 0 25px 0;
-        font-size: 1.5rem;
-        color: #1e293b;
+    /* Card styling */
+    .card {
+        background-color: #ffffff;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        transition: transform 0.2s, box-shadow 0.2s;
     }
 
-    /* Setting Items */
-    .setting-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px 0;
-        border-bottom: 1px solid #f1f5f9;
+    .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
     }
 
-    .setting-item:last-child {
-        border-bottom: none;
-    }
-
-    .setting-label span {
-        display: block;
-        font-weight: 600;
-        color: #1e293b;
-        margin-bottom: 4px;
-    }
-
-    .setting-label small {
-        color: #64748b;
-        font-size: 0.9rem;
-    }
-
-    .setting-value {
-        display: flex;
-        align-items: center;
-        gap: 15px;
+    .card h3 {
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
     }
 
     /* Buttons */
-    .btn-change {
-        background: #3b82f6;
-        color: white;
+    .btn {
+        padding: 0.5rem 1.2rem;
         border: none;
-        padding: 8px 16px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: background 0.2s;
-    }
-
-    .btn-change:hover {
-        background: #2563eb;
-    }
-
-    .theme-toggle {
-        background: #f1f5f9;
-        color: #475569;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 8px;
+        border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
         transition: all 0.2s;
+        margin-top: 0.5rem;
+        background-color: #4a90e2;
+        color: #fff;
     }
 
-    .theme-toggle:hover {
-        background: #e2e8f0;
+    .btn:hover {
+        background-color: #357ab7;
     }
 
-    .btn-export {
-        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: transform 0.2s;
+    .btn-danger {
+        background-color: #e74c3c;
     }
 
-    .btn-export:hover {
-        transform: translateY(-2px);
+    .btn-danger:hover {
+        background-color: #c0392b;
     }
 
-    /* Stats Grid */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
-        margin-top: 30px;
-        padding-top: 20px;
-        border-top: 2px solid #f1f5f9;
+    .btn-primary {
+        background-color: #27ae60;
     }
 
-    .stat {
-        text-align: center;
-        padding: 15px;
-        background: #f8fafc;
-        border-radius: 12px;
+    .btn-primary:hover {
+        background-color: #1e8449;
     }
 
-    .stat-number {
-        font-size: 1.8rem;
-        font-weight: bold;
-        color: #1e293b;
-        margin-bottom: 5px;
-    }
-
-    .stat-label {
-        color: #64748b;
-        font-size: 0.9rem;
-    }
-
-    /* Account Info */
-    .account-info {
-        margin-bottom: 25px;
-    }
-
-    .info-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 12px 0;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .info-label {
-        color: #64748b;
-    }
-
-    .info-value {
-        font-weight: 500;
-        color: #1e293b;
-    }
-
-    .btn-logout {
-        width: 100%;
-        background: #f1f5f9;
-        color: #64748b;
-        border: none;
-        padding: 14px;
-        border-radius: 10px;
-        cursor: pointer;
-        font-weight: 500;
-        margin-top: 15px;
-        transition: background 0.2s;
-    }
-
-    .btn-logout:hover {
-        background: #fee2e2;
-        color: #dc2626;
-    }
-
-    /* Modal */
-    .modal-overlay {
+    /* Modal styling */
+    .modal {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-    }
-
-    .modal {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 16px;
-        width: 90%;
-        max-width: 400px;
-        z-index: 1001;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    }
-
-    .modal-header {
+        background-color: rgba(0, 0, 0, 0.5);
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 20px;
-        border-bottom: 1px solid #e2e8f0;
+        justify-content: center;
+        z-index: 999;
     }
 
-    .modal-header h3 {
-        margin: 0;
-        font-size: 1.3rem;
+    .modal-content {
+        background-color: #fff;
+        padding: 2rem;
+        border-radius: 12px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+        position: relative;
     }
 
-    .modal-close {
-        background: none;
-        border: none;
-        font-size: 1.2rem;
-        cursor: pointer;
-        color: #64748b;
-        padding: 5px;
+    .modal-content h3 {
+        margin-top: 0;
     }
 
-    .modal-body {
-        padding: 20px;
-    }
-
-    .modal-footer {
-        display: flex;
-        gap: 10px;
-        padding: 20px;
-        border-top: 1px solid #e2e8f0;
-    }
-
-    /* Form Elements */
-    .form-group {
-        margin-bottom: 20px;
-    }
-
-    .form-group label {
-        display: block;
-        font-weight: 500;
-        color: #475569;
-        margin-bottom: 8px;
-    }
-
-    .current-value {
-        padding: 12px;
-        background: #f8fafc;
-        border-radius: 8px;
-        color: #1e293b;
-        font-weight: 500;
-    }
-
-    .form-input {
+    /* Form inputs */
+    .form-control {
         width: 100%;
-        padding: 12px;
-        border: 2px solid #e2e8f0;
-        border-radius: 8px;
+        padding: 0.6rem 0.8rem;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        margin-bottom: 0.8rem;
         font-size: 1rem;
-        transition: border 0.2s;
     }
 
-    .form-input:focus {
+    .form-control:focus {
         outline: none;
-        border-color: #3b82f6;
+        border-color: #4a90e2;
+        box-shadow: 0 0 4px rgba(74, 144, 226, 0.5);
     }
 
-    /* Buttons */
-    .btn-cancel {
-        flex: 1;
-        background: #f1f5f9;
-        color: #475569;
-        border: none;
-        padding: 12px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-    }
-
-    .btn-save {
-        flex: 1;
-        background: #3b82f6;
-        color: white;
-        border: none;
-        padding: 12px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-    }
-
-    .btn-save:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
-    /* Alert */
+    /* Alerts */
     .alert {
-        padding: 12px;
-        border-radius: 8px;
-        margin-top: 15px;
+        padding: 0.5rem 0.8rem;
+        border-radius: 6px;
+        margin: 0.5rem 0;
+    }
+
+    .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .alert-danger {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    /* Export modal buttons */
+    .export-options {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .export-btn, .export-btn-active {
+        flex: 1;
+        padding: 0.5rem 0;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        cursor: pointer;
         text-align: center;
+        transition: all 0.2s;
     }
 
-    .alert.success {
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #86efac;
+    .export-btn {
+        background-color: #f0f0f0;
     }
 
-    .alert.error {
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fca5a5;
+    .export-btn:hover {
+        background-color: #e0e0e0;
     }
 
-    /* Spinner */
-    .spinner {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(255,255,255,0.3);
-        border-top-color: white;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-right: 8px;
+    .export-btn-active {
+        background-color: #4a90e2;
+        color: #fff;
+        border-color: #357ab7;
     }
 
-    @@keyframes spin {
-        to { transform: rotate(360deg); }
+    
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 1rem;
     }
 
-    /* Responsive */
-    @@media (max-width: 768px) {
-        .settings-card {
-            margin: 10px;
-            padding: 20px;
-        }
-        
-        .stats-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        .setting-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-        }
-        
-        .setting-value {
-            align-self: flex-end;
-        }
+    /* Dark mode */
+    body.dark-mode {
+        background-color: #1a1a1a;
+        color: #f1f1f1;
+    }
+
+    body.dark-mode .card,
+    body.dark-mode .modal-content {
+        background-color: #2a2a2a;
+    }
+
+    body.dark-mode .form-control {
+        background-color: #3a3a3a;
+        color: #fff;
+        border: 1px solid #555;
+    }
+
+    body.dark-mode .btn {
+        color: #fff;
+    }
+
+    body.dark-mode .alert-success {
+        background-color: #1557241a;
+        color: #d4edda;
+    }
+
+    body.dark-mode .alert-danger {
+        background-color: #721c241a;
+        color: #f8d7da;
     }
 </style>
 
+
 @code {
-    // User data
-    private User? currentUser = null;
+    private User? user = null;
     private int loggedUserId = 0;
     private int totalEntries = 0;
     private int currentStreak = 0;
-    private string memberSince = "";
-    
-    // Forms
-    private bool showUsernameForm = false;
-    private bool showPinForm = false;
+
+    private bool showUsernameModal = false;
+    private bool showPinModal = false;
+    private bool showExportModal = false;
     private string newUsername = "";
     private string currentPin = "";
     private string newPin = "";
@@ -617,17 +408,19 @@
     private string message = "";
     private bool isError = false;
     private bool isSaving = false;
-    
-    // Theme
+
+    private string exportType = "all";
+    private DateTime selectedDate = DateTime.Today;
+    private DateTime startDate = DateTime.Today.AddDays(-7);
+    private DateTime endDate = DateTime.Today;
+
     private bool isDarkMode = false;
 
     protected override async Task OnInitializedAsync()
     {
-        // Get logged user ID
         var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
-        if (!string.IsNullOrEmpty(userIdStr))
+        if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out loggedUserId))
         {
-            loggedUserId = int.Parse(userIdStr);
             await LoadUserData();
             await LoadTheme();
         }
@@ -641,84 +434,21 @@
     {
         try
         {
-            // Load current user
-            currentUser = await Task.Run(() => db.Users.Find(loggedUserId));
-            
-            if (currentUser == null)
+            user = await SettingsService.GetUserAsync(loggedUserId);
+            if (user == null)
             {
-                Nav.NavigateTo("/login");
+                await Logout();
                 return;
             }
-            
-            // Format member since date
-            //memberSince = currentUser.CreatedAt.ToString("MMM yyyy");
-            
-            // Load total entries
-            totalEntries = await Task.Run(() => 
-                db.JournalEntries.Count(e => e.UserId == loggedUserId));
-            
-            // Calculate streak
-            await CalculateStreak();
+
+            var stats = await SettingsService.GetUserStatsAsync(loggedUserId);
+            totalEntries = stats.TotalEntries;
+            currentStreak = stats.Streak;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading user data: {ex.Message}");
-        }
-    }
-
-    private async Task CalculateStreak()
-    {
-        try
-        {
-            var entryDates = await Task.Run(() =>
-                db.JournalEntries
-                    .Where(e => e.UserId == loggedUserId)
-                    .Select(e => e.EntryDate.Date)
-                    .Distinct()
-                    .OrderByDescending(d => d)
-                    .ToList());
-            
-            if (!entryDates.Any())
-            {
-                currentStreak = 0;
-                return;
-            }
-            
-            int streak = 0;
-            var checkDate = DateTime.Today;
-            
-            if (entryDates.Contains(DateTime.Today))
-            {
-                streak = 1;
-                checkDate = DateTime.Today.AddDays(-1);
-                
-                while (entryDates.Contains(checkDate))
-                {
-                    streak++;
-                    checkDate = checkDate.AddDays(-1);
-                }
-            }
-            else
-            {
-                checkDate = DateTime.Today.AddDays(-1);
-                if (entryDates.Contains(checkDate))
-                {
-                    streak = 1;
-                    checkDate = checkDate.AddDays(-1);
-                    
-                    while (entryDates.Contains(checkDate))
-                    {
-                        streak++;
-                        checkDate = checkDate.AddDays(-1);
-                    }
-                }
-            }
-            
-            currentStreak = streak;
-        }
-        catch
-        {
-            currentStreak = 0;
+            message = $"Error: {ex.Message}";
+            isError = true;
         }
     }
 
@@ -726,8 +456,13 @@
     {
         try
         {
-            var darkModePref = await JS.InvokeAsync<string>("localStorage.getItem", "darkMode");
-            isDarkMode = darkModePref == "true";
+            var theme = await JS.InvokeAsync<string>("localStorage.getItem", "theme");
+            isDarkMode = theme == "dark";
+
+            if (isDarkMode)
+            {
+                await JS.InvokeVoidAsync("eval", "document.body.style.backgroundColor = '#1a1a1a'; document.body.style.color = '#ffffff';");
+            }
         }
         catch
         {
@@ -738,217 +473,216 @@
     private async Task ToggleTheme()
     {
         isDarkMode = !isDarkMode;
-        await JS.InvokeVoidAsync("localStorage.setItem", "darkMode", isDarkMode.ToString());
-        
-        // Apply theme
-        if (isDarkMode)
+
+        try
         {
-            await JS.InvokeVoidAsync("eval", 
-                "document.body.style.backgroundColor = '#0f172a'; " +
-                "document.body.style.color = '#e2e8f0';");
+            await JS.InvokeVoidAsync("localStorage.setItem", "theme", isDarkMode ? "dark" : "light");
+
+            if (isDarkMode)
+            {
+                await JS.InvokeVoidAsync("eval", "document.body.style.backgroundColor = '#1a1a1a'; document.body.style.color = '#ffffff';");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("eval", "document.body.style.backgroundColor = '#ffffff'; document.body.style.color = '#000000';");
+            }
+
+            StateHasChanged();
         }
-        else
+        catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("eval", 
-                "document.body.style.backgroundColor = '#f8fafc'; " +
-                "document.body.style.color = '#1e293b';");
+            message = $"Theme error: {ex.Message}";
+            isError = true;
+            StateHasChanged();
         }
     }
 
-    private void ShowUsernameForm()
+    private void ShowUsernameModal()
     {
-        showUsernameForm = true;
-        showPinForm = false;
-        newUsername = currentUser?.Username ?? "";
+        showUsernameModal = true;
+        showPinModal = false;
+        showExportModal = false;
+        newUsername = user?.Username ?? "";
         message = "";
         isError = false;
+        StateHasChanged();
     }
 
-    private void ShowPinForm()
+    private void ShowPinModal()
     {
-        showPinForm = true;
-        showUsernameForm = false;
+        showPinModal = true;
+        showUsernameModal = false;
+        showExportModal = false;
         currentPin = "";
         newPin = "";
         confirmPin = "";
         message = "";
         isError = false;
+        StateHasChanged();
+    }
+
+    private void ShowExportModal()
+    {
+        showExportModal = true;
+        showUsernameModal = false;
+        showPinModal = false;
+        exportType = "all";
+        message = "";
+        isError = false;
+        StateHasChanged();
     }
 
     private void CloseModal()
     {
-        showUsernameForm = false;
-        showPinForm = false;
+        showUsernameModal = false;
+        showPinModal = false;
+        showExportModal = false;
         message = "";
         isError = false;
         isSaving = false;
+        StateHasChanged();
+    }
+
+    private void SetExportTypeAll()
+    {
+        exportType = "all";
+        StateHasChanged();
+    }
+
+    private void SetExportTypeDate()
+    {
+        exportType = "date";
+        StateHasChanged();
+    }
+
+    private void SetExportTypeRange()
+    {
+        exportType = "range";
+        StateHasChanged();
     }
 
     private async Task SaveUsername()
     {
-        if (string.IsNullOrWhiteSpace(newUsername) || currentUser == null)
+        if (string.IsNullOrWhiteSpace(newUsername) || user == null)
             return;
-        
-        if (newUsername == currentUser.Username)
-        {
-            message = "That's already your username!";
-            isError = true;
-            return;
-        }
-        
-        if (newUsername.Length < 3)
-        {
-            message = "Username must be at least 3 characters";
-            isError = true;
-            return;
-        }
-        
-        // Check if username exists
-        var existingUser = await Task.Run(() => 
-            db.Users.FirstOrDefault(u => u.Username == newUsername && u.Id != loggedUserId));
-        
-        if (existingUser != null)
-        {
-            message = "Username already taken";
-            isError = true;
-            return;
-        }
-        
+
         isSaving = true;
-        
-        try
+        StateHasChanged();
+
+        var result = await SettingsService.UpdateUsernameAsync(loggedUserId, newUsername);
+
+        message = result.Message;
+        isError = !result.Success;
+
+        if (result.Success)
         {
-            currentUser.Username = newUsername;
-            await Task.Run(() =>
-            {
-                db.Users.Update(currentUser);
-                db.SaveChanges();
-            });
-            
-            message = "Username updated successfully!";
-            isError = false;
-            
-            // Close modal after success
+            await LoadUserData();
             await Task.Delay(1500);
             CloseModal();
         }
-        catch (Exception ex)
-        {
-            message = $"Error: {ex.Message}";
-            isError = true;
-        }
-        finally
-        {
-            isSaving = false;
-        }
+
+        isSaving = false;
+        StateHasChanged();
     }
 
     private async Task SavePin()
     {
-        if (currentUser == null)
+        if (user == null)
             return;
-        
-        if (string.IsNullOrEmpty(currentPin) || currentPin != currentUser.Pin)
-        {
-            message = "Current PIN is incorrect";
-            isError = true;
-            return;
-        }
-        
-        if (string.IsNullOrEmpty(newPin) || newPin.Length < 4 || !newPin.All(char.IsDigit))
-        {
-            message = "New PIN must be 4-6 digits";
-            isError = true;
-            return;
-        }
-        
+
         if (newPin != confirmPin)
         {
             message = "PINs don't match";
             isError = true;
+            StateHasChanged();
             return;
         }
-        
-        if (newPin == currentPin)
-        {
-            message = "New PIN must be different";
-            isError = true;
-            return;
-        }
-        
+
         isSaving = true;
-        
-        try
+        StateHasChanged();
+
+        var result = await SettingsService.UpdatePinAsync(loggedUserId, currentPin, newPin);
+
+        message = result.Message;
+        isError = !result.Success;
+
+        if (result.Success)
         {
-            currentUser.Pin = newPin;
-            await Task.Run(() =>
-            {
-                db.Users.Update(currentUser);
-                db.SaveChanges();
-            });
-            
-            message = "PIN changed successfully!";
-            isError = false;
-            
-            // Close modal after success
             await Task.Delay(1500);
             CloseModal();
         }
+
+        isSaving = false;
+        StateHasChanged();
+    }
+
+    private async Task ExportPdf()
+    {
+        try
+        {
+            isSaving = true;
+            message = "Generating PDF...";
+            isError = false;
+            StateHasChanged();
+
+            (bool Success, string Message, byte[]? PdfData) result;
+            string fileName = "";
+
+            if (exportType == "date")
+            {
+                result = await SettingsService.ExportPdfByDateAsync(loggedUserId, selectedDate);
+                fileName = $"BrainDumpster_{selectedDate:yyyyMMdd}.pdf";
+            }
+            else if (exportType == "range")
+            {
+                result = await SettingsService.ExportPdfByDateRangeAsync(loggedUserId, startDate, endDate);
+                fileName = $"BrainDumpster_{startDate:yyyyMMdd}_to_{endDate:yyyyMMdd}.pdf";
+            }
+            else
+            {
+                result = await SettingsService.ExportPdfAllAsync(loggedUserId);
+                fileName = $"BrainDumpster_All_Journals_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            }
+
+            if (!result.Success || result.PdfData == null)
+            {
+                message = result.Message;
+                isError = true;
+                isSaving = false;
+                StateHasChanged();
+                return;
+            }
+
+            try
+            {
+                await SettingsService.DownloadPdfFile(result.PdfData, fileName);
+                message = $"✅ PDF downloaded: {fileName}";
+                isError = false;
+
+                await Task.Delay(1500);
+                CloseModal();
+            }
+            catch (Exception ex)
+            {
+                var base64 = Convert.ToBase64String(result.PdfData);
+                await JS.InvokeVoidAsync("downloadPdf", base64, fileName);
+
+                message = $"✅ PDF downloaded: {fileName}";
+                isError = false;
+
+                await Task.Delay(1500);
+                CloseModal();
+            }
+        }
         catch (Exception ex)
         {
-            message = $"Error: {ex.Message}";
+            message = $"❌ PDF export failed: {ex.Message}";
             isError = true;
         }
         finally
         {
             isSaving = false;
-        }
-    }
-
-    private async Task ExportJournals()
-    {
-        try
-        {
-            var entries = await Task.Run(() =>
-                db.JournalEntries
-                    .Where(e => e.UserId == loggedUserId)
-                    .OrderByDescending(e => e.EntryDate)
-                    .ToList());
-            
-            // Create JSON data
-            var exportData = new
-            {
-                User = currentUser?.Username,
-                ExportDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
-                TotalEntries = entries.Count,
-                Entries = entries.Select(e => new
-                {
-                    Date = e.EntryDate.ToString("yyyy-MM-dd HH:mm"),
-                    Mood = e.PrimaryMood,
-                    Content = e.Content
-                })
-            };
-            
-            var json = System.Text.Json.JsonSerializer.Serialize(exportData, 
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            
-            // Copy to clipboard
-            await JS.InvokeVoidAsync("navigator.clipboard.writeText", json);
-            
-            // Show success message
-            message = "✅ All journals copied to clipboard!";
-            isError = false;
-            showUsernameForm = false;
-            showPinForm = false;
-            
-            // Auto-hide message
-            await Task.Delay(3000);
-            message = "";
-        }
-        catch
-        {
-            message = "❌ Could not export data";
-            isError = true;
+            StateHasChanged();
         }
     }
 
@@ -956,10 +690,5 @@
     {
         await JS.InvokeVoidAsync("localStorage.removeItem", "loggedUserId");
         Nav.NavigateTo("/", true);
-    }
-
-    private void GoBack()
-    {
-        Nav.NavigateTo("/dashboard");
     }
 }

@@ -1,8 +1,9 @@
 ﻿@page "/login"
-@using BrainDumpster.Data
-@inject AppDbContext db
-@inject NavigationManager nav
-@inject IJSRuntime JS
+@using BrainDumpster.Services
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+
 
 <PageTitle>Login - BrainDumpster</PageTitle>
 
@@ -542,6 +543,16 @@
     private bool isError = false;
     private bool isLoading = false;
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if already logged in
+        var isLoggedIn = await Auth.IsLoggedInAsync();
+        if (isLoggedIn)
+        {
+            Nav.NavigateTo("/dashboard");
+        }
+    }
+
     private async Task LoginUser()
     {
         if (isLoading) return;
@@ -550,51 +561,24 @@
         message = "";
         isError = false;
 
-        try
+        // Use service for login logic
+        var result = await Auth.LoginAsync(username, pin);
+
+        if (result.Success)
         {
-            if (string.IsNullOrWhiteSpace(username))
-            {
-                message = "Please enter your username";
-                isError = true;
-                isLoading = false;
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(pin) || pin.Length < 4)
-            {
-                message = "PIN must be 4-6 digits";
-                isError = true;
-                isLoading = false;
-                return;
-            }
-
-            var user = db.Users.FirstOrDefault(u => u.Username == username && u.Pin == pin);
-
-            if (user == null)
-            {
-                message = "Invalid username or PIN!";
-                isError = true;
-                isLoading = false;
-                return;
-            }
-
-            await JS.InvokeVoidAsync("localStorage.setItem", "loggedUserId", user.Id.ToString());
-
             message = "Login successful! Redirecting...";
             isError = false;
 
             await Task.Delay(1000);
-            nav.NavigateTo("/dashboard");
+            Nav.NavigateTo("/dashboard");
         }
-        catch (Exception ex)
+        else
         {
-            message = $"Error: {ex.Message}";
+            message = result.Message;
             isError = true;
         }
-        finally
-        {
-            isLoading = false;
-        }
+
+        isLoading = false;
     }
 
     private void HandleKeyPress(KeyboardEventArgs e)

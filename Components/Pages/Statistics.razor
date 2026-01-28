@@ -1,0 +1,186 @@
+﻿@page "/statistics"
+@using BrainDumpster.Data
+@inject AppDbContext Db
+@inject IJSRuntime JS
+
+<h3 class="title">📊 Your Statistics</h3>
+
+@if (!loaded)
+{
+    <p class="loading">Loading...</p>
+}
+else
+{
+    <div class="stats-container">
+
+        <div class="stat-box">
+            <h5>😊 Most Used Mood</h5>
+            <p class="stat-main">@MostUsedMood</p>
+        </div>
+
+        <div class="stat-box">
+            <h5>🏷️ Most Used Tags</h5>
+
+            @if (TopTags.Count == 0)
+            {
+                <p class="muted">No tags yet.</p>
+            }
+            else
+            {
+                <ul class="tag-list">
+                    @foreach (var tag in TopTags)
+                    {
+                        <li>#@tag.Tag <span>@tag.Count</span></li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <div class="stat-box">
+            <h5>🥧 Mood Distribution</h5>
+            <canvas id="moodChart" height="200"></canvas>
+        </div>
+
+    </div>
+}
+
+
+
+
+<script>
+        window.drawMoodChart = (labels, values) => {
+        const ctx = document.getElementById('moodChart');
+        if (!ctx) return;
+
+        const colors = [
+            'rgba(102, 126, 234, 0.8)',
+            'rgba(118, 75, 162, 0.8)',
+            'rgba(79, 195, 247, 0.8)',
+            'rgba(102, 187, 106, 0.8)',
+            'rgba(255, 193, 7, 0.8)',
+            'rgba(239, 83, 80, 0.8)',
+            'rgba(171, 71, 188, 0.8)'
+        ];
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 2,
+                    hoverOffset: 15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#e2e8f0',
+                            padding: 20,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#e2e8f0',
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+    };
+</script>
+
+
+
+@code {
+    Dictionary<string, int> MoodChartData = new();
+
+    int userId;
+    bool loaded = false;
+
+    string MostUsedMood = "No data yet";
+
+    List<TagStat> TopTags = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var idStr = await JS.InvokeAsync<string>("localStorage.getItem", "loggedUserId");
+        if (string.IsNullOrEmpty(idStr)) return;
+
+        userId = int.Parse(idStr);
+
+        LoadMoodStats();
+        LoadTagStats();
+
+        loaded = true;
+    }
+
+    void LoadMoodStats()
+    {
+        var moodGroups = Db.JournalEntries
+            .Where(j => j.UserId == userId)
+            .GroupBy(j => j.PrimaryMood)
+            .Select(g => new { Mood = g.Key, Count = g.Count() })
+            .ToList();
+
+        if (moodGroups.Count > 0)
+        {
+            var top = moodGroups.OrderByDescending(x => x.Count).First();
+            MostUsedMood = $"{top.Mood} ({top.Count} times)";
+
+            MoodChartData = moodGroups.ToDictionary(x => x.Mood, x => x.Count);
+        }
+    }
+
+
+    void LoadTagStats()
+    {
+        var tagStats = Db.JournalEntries
+    .Where(j => j.UserId == userId && j.Tags != null && j.Tags.Any())
+    .SelectMany(j => j.Tags)
+    .GroupBy(t => t.Name.ToLower())
+    .Select(g => new TagStat
+    {
+        Tag = g.Key,
+        Count = g.Count()
+    })
+    .OrderByDescending(x => x.Count)
+    .Take(5)
+    .ToList();
+
+
+        TopTags = tagStats;
+    }
+
+    class TagStat
+    {
+        public string Tag { get; set; } = "";
+        public int Count { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && MoodChartData.Count > 0)
+        {
+            await JS.InvokeVoidAsync(
+                "drawMoodChart",
+                MoodChartData.Keys.ToArray(),
+                MoodChartData.Values.ToArray()
+            );
+        }
+    }
+
+}
+

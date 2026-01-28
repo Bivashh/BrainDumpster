@@ -1,0 +1,176 @@
+﻿@page "/entry/edit/{EntryId:int}"
+@using BrainDumpster.Model
+@using BrainDumpster.Services
+@inject JournalService JournalService
+@inject NavigationManager Nav
+
+<h1>Edit Journal Entry</h1>
+
+@if (loggedUserId > 0)
+{
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Loading...</div>
+    }
+    else if (currentEntry == null)
+    {
+        <div class="alert alert-danger">
+            Entry not found!
+            <button class="btn btn-sm btn-outline-danger ms-2" @onclick="GoBack">Go Back</button>
+        </div>
+    }
+    else
+    {
+        <div>
+            <!-- Editor -->
+            <div class="mb-3">
+                <label class="form-label">Content</label>
+                <div id="editor" style="height: 200px;"></div>
+            </div>
+
+            <!-- Mood Selection -->
+            <div class="mb-3">
+                <label class="form-label">Mood</label>
+                <div>
+                    @foreach (var m in moods)
+                    {
+                        <button class="btn @(mood == m ? "btn-primary" : "btn-outline-primary") me-2"
+                                @onclick="() => mood = m">
+                            @m
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- Tags -->
+            <div class="mb-3">
+                <label class="form-label">Tags</label>
+                <div>
+                    @foreach (var t in availableTags)
+                    {
+                        <button class="btn btn-sm @(selectedTags.Contains(t) ? "btn-primary" : "btn-outline-secondary") me-2 mb-2"
+                                @onclick="() => ToggleTag(t)">
+                            @t
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <button class="btn btn-success" @onclick="UpdateEntry">
+                Update Entry
+            </button>
+            <button class="btn btn-outline-secondary ms-2" @onclick="GoBack">
+                Cancel
+            </button>
+
+            <!-- Message -->
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3">
+                    @message
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    <div class="alert alert-warning">
+        Please log in to edit your journal.
+        <button class="btn btn-sm btn-outline-warning ms-2" @onclick="GoToLogin">Login</button>
+    </div>
+}
+
+@code {
+    [Parameter] public int EntryId { get; set; }
+
+    private JournalEntry? currentEntry;
+    private string mood = "🙂";
+    private List<string> selectedTags = new();
+    private string message = "";
+    private bool isError = false;
+    private int loggedUserId = 0;
+    private bool isLoading = true;
+
+    private readonly List<string> moods = new() { "😄", "🙂", "😐", "😔" };
+    private readonly List<string> availableTags = new() { "Work", "Health", "Fitness", "Study", "Travel", "Personal", "Reflection", "Planning" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await JournalService.GetLoggedUserIdAsync();
+        if (userId.HasValue)
+        {
+            loggedUserId = userId.Value;
+        }
+        else
+        {
+            Nav.NavigateTo("/login");
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loggedUserId > 0 && EntryId > 0)
+        {
+            currentEntry = JournalService.GetEntryById(EntryId, loggedUserId);
+
+            if (currentEntry != null)
+            {
+                mood = currentEntry.PrimaryMood;
+                selectedTags = currentEntry.Tags?.Select(t => t.Name).ToList() ?? new List<string>();
+            }
+
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && loggedUserId > 0 && currentEntry != null)
+        {
+            await JournalService.InitEditor();
+            await JournalService.SetEditorContent(currentEntry.Content);
+        }
+    }
+
+    private void ToggleTag(string tag)
+    {
+        if (selectedTags.Contains(tag))
+            selectedTags.Remove(tag);
+        else
+            selectedTags.Add(tag);
+    }
+
+    private async Task UpdateEntry()
+    {
+        var content = await JournalService.GetEditorContent();
+        var result = await JournalService.UpdateEntryAsync(EntryId, loggedUserId, content, mood, selectedTags);
+
+        if (result.Success)
+        {
+            message = result.Message;
+            isError = false;
+
+            // Navigate back after a short delay
+            await Task.Delay(1500);
+            Nav.NavigateTo("/entry");
+        }
+        else
+        {
+            message = result.Message;
+            isError = true;
+        }
+    }
+
+    private void GoBack()
+    {
+        Nav.NavigateTo("/entry");
+    }
+
+    private void GoToLogin()
+    {
+        Nav.NavigateTo("/login");
+    }
+}

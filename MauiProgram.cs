@@ -1,6 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using BrainDumpster.Data;
+using BrainDumpster.Services;
 using Microsoft.EntityFrameworkCore; // Add this if using EF Core
-using BrainDumpster.Data; // Add this
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
 namespace BrainDumpster
@@ -26,6 +27,11 @@ namespace BrainDumpster
 
             // Add this line to register your AppDbContext
             builder.Services.AddSingleton<AppDbContext>();
+
+
+            builder.Services.AddScoped<AuthService>();
+            builder.Services.AddScoped<JournalService>();
+            builder.Services.AddScoped<SettingsService>();
 
             // OR if you're using Entity Framework Core with SQLite:
             /*
